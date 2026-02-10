@@ -1,11 +1,16 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import type { UIMessage } from 'ai'
 import { User, Bot, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-function getMessageText(message: UIMessage): string {
+interface MessageLike {
+  id: string
+  role: string
+  parts?: Array<{ type: string; text?: string }>
+}
+
+function getMessageText(message: MessageLike): string {
   if (!message.parts || !Array.isArray(message.parts)) return ''
   return message.parts
     .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
@@ -14,7 +19,7 @@ function getMessageText(message: UIMessage): string {
 }
 
 interface ChatMessageListProps {
-  messages: UIMessage[]
+  messages: MessageLike[]
   isLoading: boolean
 }
 

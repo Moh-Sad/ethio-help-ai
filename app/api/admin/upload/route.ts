@@ -1,13 +1,15 @@
 /**
  * POST /api/admin/upload
  * Admin endpoint to add documents to the knowledge base.
- * - Validates the admin password
+ * - Validates the user session via cookie
  * - Splits text into chunks
  * - Generates embeddings via AI SDK
  * - Stores chunks in the in-memory knowledge store
  */
 
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/auth-store'
 import { splitIntoChunks, generateEmbeddings } from '@/lib/rag'
 import { addChunks, type DocumentChunk } from '@/lib/knowledge-store'
 
@@ -15,16 +17,17 @@ export const maxDuration = 120
 
 export async function POST(req: Request) {
   try {
-    const { title, content, password } = await req.json()
-
-    // Validate admin password
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
-    if (password !== adminPassword) {
+    // Validate session
+    const cookieStore = await cookies()
+    const sessionId = cookieStore.get('session_id')?.value
+    if (!sessionId || !getSessionUser(sessionId)) {
       return NextResponse.json(
-        { error: 'Invalid admin password.' },
+        { error: 'You must be signed in to upload documents.' },
         { status: 401 }
       )
     }
+
+    const { title, content } = await req.json()
 
     // Validate inputs
     if (!title || typeof title !== 'string' || title.trim().length === 0) {

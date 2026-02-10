@@ -1,6 +1,8 @@
 import React from "react"
 import type { Metadata, Viewport } from 'next'
 import { Inter, Space_Mono } from 'next/font/google'
+import { ThemeProvider } from '@/components/theme-provider'
+import { AuthProvider } from '@/components/auth-provider'
 
 import './globals.css'
 
@@ -23,9 +25,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
-        {children}
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

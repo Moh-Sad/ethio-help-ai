@@ -1,10 +1,10 @@
 'use client'
 
-import React from "react"
-
-import { useState, useCallback } from 'react'
+import React, { useState, useCallback } from 'react'
+import Link from 'next/link'
 import useSWR, { mutate } from 'swr'
 import { Navbar } from '@/components/navbar'
+import { useAuth } from '@/components/auth-provider'
 import {
   Upload,
   FileText,
@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Lock,
+  LogIn,
   Database,
 } from 'lucide-react'
 
@@ -23,8 +24,7 @@ interface DocumentsData {
 }
 
 export default function AdminPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [password, setPassword] = useState('')
+  const { user, isLoading: authLoading } = useAuth()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -34,87 +34,88 @@ export default function AdminPage() {
   } | null>(null)
 
   const { data: docs } = useSWR<DocumentsData>(
-    isAuthenticated ? '/api/admin/documents' : null,
+    user ? '/api/admin/documents' : null,
     fetcher
   )
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (password.trim()) {
-      setIsAuthenticated(true)
-    }
+  const handleUpload = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      setUploading(true)
+      setResult(null)
+
+      try {
+        const res = await fetch('/api/admin/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, content }),
+        })
+
+        const data = await res.json()
+
+        if (!res.ok) {
+          setResult({ type: 'error', message: data.error || 'Upload failed.' })
+          return
+        }
+
+        setResult({
+          type: 'success',
+          message: `${data.message} (${data.chunksCreated} chunks created)`,
+        })
+        setTitle('')
+        setContent('')
+        mutate('/api/admin/documents')
+      } catch {
+        setResult({ type: 'error', message: 'Network error. Please try again.' })
+      } finally {
+        setUploading(false)
+      }
+    },
+    [title, content]
+  )
+
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Navbar />
+        <main className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        </main>
+      </div>
+    )
   }
 
-  const handleUpload = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    setUploading(true)
-    setResult(null)
-
-    try {
-      const res = await fetch('/api/admin/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content, password }),
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setResult({ type: 'error', message: data.error || 'Upload failed.' })
-        if (res.status === 401) {
-          setIsAuthenticated(false)
-        }
-        return
-      }
-
-      setResult({
-        type: 'success',
-        message: `${data.message} (${data.chunksCreated} chunks created)`,
-      })
-      setTitle('')
-      setContent('')
-      mutate('/api/admin/documents')
-    } catch {
-      setResult({ type: 'error', message: 'Network error. Please try again.' })
-    } finally {
-      setUploading(false)
-    }
-  }, [title, content, password])
-
-  // Login screen
-  if (!isAuthenticated) {
+  // Not logged in
+  if (!user) {
     return (
       <div className="flex min-h-screen flex-col">
         <Navbar />
         <main className="flex flex-1 items-center justify-center px-4">
-          <form
-            onSubmit={handleLogin}
-            className="w-full max-w-sm rounded-xl border border-border bg-card p-8"
-          >
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8">
             <div className="mb-6 flex flex-col items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
                 <Lock className="h-6 w-6 text-primary" />
               </div>
               <h1 className="text-xl font-bold text-card-foreground">Admin Access</h1>
               <p className="text-center text-sm text-muted-foreground">
-                Enter the admin password to manage the knowledge base.
+                Sign in to your account to manage the knowledge base.
               </p>
             </div>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Admin password"
-              className="mb-4 w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              required
-            />
-            <button
-              type="submit"
-              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            <Link
+              href="/login"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
-              Enter Admin Panel
-            </button>
-          </form>
+              <LogIn className="h-4 w-4" />
+              Sign In
+            </Link>
+            <p className="mt-3 text-center text-sm text-muted-foreground">
+              {"Don't have an account? "}
+              <Link href="/signup" className="font-medium text-primary hover:underline">
+                Sign up
+              </Link>
+            </p>
+          </div>
         </main>
       </div>
     )
@@ -130,6 +131,8 @@ export default function AdminPage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Upload documents to build the AI knowledge base for Ethiopian services.
+            Logged in as{' '}
+            <span className="font-medium text-foreground">{user.name}</span>.
           </p>
         </div>
 

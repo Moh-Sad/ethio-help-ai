@@ -7,6 +7,7 @@
  * - Streams an AI response grounded in the retrieved context
  */
 
+import { cookies } from 'next/headers'
 import {
   streamText,
   convertToModelMessages,
@@ -16,11 +17,19 @@ import {
 import { retrieveChunks, getChunkCount } from '@/lib/knowledge-store'
 import { generateQueryEmbedding, buildRAGPrompt } from '@/lib/rag'
 import { isProcessQuestion, buildProcessPrompt } from '@/lib/agent'
+import { getSessionUser } from '@/lib/auth-store'
+import { addMessage, createSession } from '@/lib/chat-history'
 
 export const maxDuration = 60
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json()
+  const { messages, sessionId }: { messages: UIMessage[]; sessionId?: string } =
+    await req.json()
+
+  // Determine current user for history tracking
+  const cookieStore = await cookies()
+  const authSessionId = cookieStore.get('session_id')?.value
+  const user = authSessionId ? getSessionUser(authSessionId) : null
 
   // Extract the latest user message text from parts
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop()
@@ -51,15 +60,37 @@ Currently, no documents have been uploaded to the knowledge base yet. You can st
 Be friendly, helpful, and honest about the limitations of your current knowledge.`
   }
 
+  // Save user message to history if logged in
+  let activeSessionId = sessionId
+  if (user && questionText) {
+    if (!activeSessionId) {
+      const session = createSession(user.id, questionText.length > 50 ? `${questionText.slice(0, 50)}...` : questionText)
+      activeSessionId = session.id
+    }
+    addMessage(activeSessionId, user.id, 'user', questionText)
+  }
+
   const result = streamText({
     model: 'openai/gpt-4o-mini',
     system: systemPrompt,
     messages: await convertToModelMessages(messages),
     abortSignal: req.signal,
+    async onFinish({ text }) {
+      // Save assistant response to history
+      if (user && activeSessionId && text) {
+        addMessage(activeSessionId, user.id, 'assistant', text)
+      }
+    },
   })
+
+  const headers: Record<string, string> = {}
+  if (activeSessionId) {
+    headers['X-Session-Id'] = activeSessionId
+  }
 
   return result.toUIMessageStreamResponse({
     originalMessages: messages,
     consumeSseStream: consumeStream,
+    headers,
   })
 }

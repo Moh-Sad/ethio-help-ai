@@ -1,5 +1,8 @@
+'use client'
+
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
+import { useAuth } from '@/components/auth-provider'
 import {
   MessageSquare,
   GraduationCap,
@@ -33,6 +36,8 @@ const features = [
 ]
 
 export default function HomePage() {
+  const { user } = useAuth()
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar />
@@ -67,13 +72,23 @@ export default function HomePage() {
               <MessageSquare className="h-4 w-4" />
               Start Asking
             </Link>
-            <Link
-              href="/admin"
-              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
-            >
-              Admin Panel
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            {user ? (
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                Admin Panel
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            ) : (
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+              >
+                Create Account
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            )}
           </div>
         </section>
 
