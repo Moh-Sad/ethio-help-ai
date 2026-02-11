@@ -99,7 +99,7 @@ export default function AdminPage() {
               </div>
               <h1 className="text-xl font-bold text-card-foreground">Admin Access</h1>
               <p className="text-center text-sm text-muted-foreground">
-                Sign in to your account to manage the knowledge base.
+                Login to your account to manage the knowledge base.
               </p>
             </div>
             <Link
@@ -107,7 +107,7 @@ export default function AdminPage() {
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <LogIn className="h-4 w-4" />
-              Sign In
+              Login
             </Link>
             <p className="mt-3 text-center text-sm text-muted-foreground">
               {"Don't have an account? "}

@@ -40,7 +40,7 @@ export default function LoginPage() {
             </div>
             <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Sign in to your EthioHelp AI account
+              Login to your EthioHelp AI account
             </p>
           </div>
 
@@ -107,10 +107,10 @@ export default function LoginPage() {
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Signing in...
+                  Logging in...
                 </>
               ) : (
-                'Sign In'
+                'Login'
               )}
             </button>
           </form>

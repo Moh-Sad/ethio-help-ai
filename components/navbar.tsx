@@ -72,28 +72,6 @@ export function Navbar() {
           </span>
         </Link>
 
-        <ul className="flex items-center gap-1">
-          {navItems.map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href
-            return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="hidden sm:inline">{label}</span>
-                </Link>
-              </li>
-            )
-          })}
-        </ul>
-
         <div className="flex items-center gap-2">
           {/* Dark mode toggle */}
           <button
@@ -175,7 +153,7 @@ export function Navbar() {
                 )}
               >
                 <LogIn className="h-4 w-4" />
-                <span className="hidden sm:inline">Sign in</span>
+                <span className="hidden sm:inline">Login</span>
               </Link>
               <Link
                 href="/signup"
