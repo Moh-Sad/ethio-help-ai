@@ -5,9 +5,9 @@
  * - Embeds the latest question
  * - Retrieves relevant chunks from the knowledge store
  * - Streams an AI response grounded in the retrieved context
+ * - Saves messages to backend history if user is authenticated
  */
 
-import { cookies } from 'next/headers'
 import {
   streamText,
   convertToModelMessages,
@@ -17,8 +17,8 @@ import {
 import { retrieveChunks, getChunkCount } from '@/lib/knowledge-store'
 import { generateQueryEmbedding, buildRAGPrompt } from '@/lib/rag'
 import { isProcessQuestion, buildProcessPrompt } from '@/lib/agent'
-import { getSessionUser } from '@/lib/auth-store'
-import { addMessage, createSession } from '@/lib/chat-history'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export const maxDuration = 60
 
@@ -26,10 +26,9 @@ export async function POST(req: Request) {
   const { messages, sessionId }: { messages: UIMessage[]; sessionId?: string } =
     await req.json()
 
-  // Determine current user for history tracking
-  const cookieStore = await cookies()
-  const authSessionId = cookieStore.get('session_id')?.value
-  const user = authSessionId ? getSessionUser(authSessionId) : null
+  // Extract token from Authorization header
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
 
   // Extract the latest user message text from parts
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop()
@@ -60,14 +59,40 @@ Currently, no documents have been uploaded to the knowledge base yet. You can st
 Be friendly, helpful, and honest about the limitations of your current knowledge.`
   }
 
-  // Save user message to history if logged in
+  // Save user message to backend history if authenticated
   let activeSessionId = sessionId
-  if (user && questionText) {
-    if (!activeSessionId) {
-      const session = createSession(user.id, questionText.length > 50 ? `${questionText.slice(0, 50)}...` : questionText)
-      activeSessionId = session.id
+  if (token && questionText) {
+    try {
+      if (!activeSessionId) {
+        const createRes = await fetch(`${API_URL}/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: questionText.length > 50 ? `${questionText.slice(0, 50)}...` : questionText,
+          }),
+        })
+        const createData = await createRes.json()
+        if (createData.session) {
+          activeSessionId = createData.session.id
+        }
+      }
+
+      if (activeSessionId) {
+        await fetch(`${API_URL}/history/${activeSessionId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role: 'user', text: questionText }),
+        })
+      }
+    } catch {
+      // Silently fail history save
     }
-    addMessage(activeSessionId, user.id, 'user', questionText)
   }
 
   const result = streamText({
@@ -76,9 +101,20 @@ Be friendly, helpful, and honest about the limitations of your current knowledge
     messages: await convertToModelMessages(messages),
     abortSignal: req.signal,
     async onFinish({ text }) {
-      // Save assistant response to history
-      if (user && activeSessionId && text) {
-        addMessage(activeSessionId, user.id, 'assistant', text)
+      // Save assistant response to backend history
+      if (token && activeSessionId && text) {
+        try {
+          await fetch(`${API_URL}/history/${activeSessionId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ role: 'assistant', text }),
+          })
+        } catch {
+          // Silently fail
+        }
       }
     },
   })

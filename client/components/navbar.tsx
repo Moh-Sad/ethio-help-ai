@@ -22,7 +22,6 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/chat', label: 'Chat', icon: MessageSquare },
-  { href: '/admin', label: 'Admin', icon: Shield },
 ]
 
 function getInitials(name: string): string {
@@ -117,14 +116,16 @@ export function Navbar() {
                       <History className="h-4 w-4 text-muted-foreground" />
                       Chat History
                     </Link>
-                    <Link
-                      href="/admin"
-                      onClick={() => setDropdownOpen(false)}
-                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-card-foreground transition-colors hover:bg-muted"
-                    >
-                      <Settings className="h-4 w-4 text-muted-foreground" />
-                      Admin Panel
-                    </Link>
+                    {user.role === 'admin' && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setDropdownOpen(false)}
+                        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-card-foreground transition-colors hover:bg-muted"
+                      >
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        Admin Panel
+                      </Link>
+                    )}
                   </div>
 
                   {/* Sign out */}

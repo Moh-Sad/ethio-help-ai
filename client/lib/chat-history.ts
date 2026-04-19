@@ -1,88 +1,118 @@
 /**
- * In-memory chat history store for EthioHelp AI.
- * Stores conversation sessions per user so they can resume and browse past chats.
- * Note: Resets on server restart - for production use a database.
+ * Chat history store for EthioHelp AI.
+ * Calls the Express backend API for all chat history operations.
+ * Data is persisted in MongoDB via the backend.
  */
 
-import { randomUUID } from 'crypto'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant'
-  text: string
-  createdAt: string
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  createdAt: string;
 }
 
 export interface ChatSession {
-  id: string
-  userId: string
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+function authHeaders(token: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
+
+export async function createSession(
+  token: string,
   title: string
-  messages: ChatMessage[]
-  createdAt: string
-  updatedAt: string
-}
-
-const sessions: ChatSession[] = []
-
-/** Create a new chat session */
-export function createSession(userId: string, title: string): ChatSession {
-  const now = new Date().toISOString()
-  const session: ChatSession = {
-    id: randomUUID(),
-    userId,
-    title,
-    messages: [],
-    createdAt: now,
-    updatedAt: now,
+): Promise<ChatSession | null> {
+  try {
+    const res = await fetch(`${API_URL}/history`, {
+      method: "POST",
+      headers: authHeaders(token),
+      credentials: "include",
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.session;
+  } catch {
+    return null;
   }
-  sessions.push(session)
-  return session
 }
 
-/** Get all sessions for a user, newest first */
-export function getUserSessions(userId: string): Omit<ChatSession, 'messages'>[] {
-  return sessions
-    .filter((s) => s.userId === userId)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-    .map(({ messages: _, ...rest }) => rest)
+export async function getUserSessions(
+  token: string
+): Promise<Omit<ChatSession, "messages">[]> {
+  try {
+    const res = await fetch(`${API_URL}/history`, {
+      headers: authHeaders(token),
+      credentials: "include",
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.sessions || [];
+  } catch {
+    return [];
+  }
 }
 
-/** Get a specific session with its messages */
-export function getSession(sessionId: string, userId: string): ChatSession | null {
-  return sessions.find((s) => s.id === sessionId && s.userId === userId) ?? null
+export async function getSession(
+  token: string,
+  sessionId: string
+): Promise<ChatSession | null> {
+  try {
+    const res = await fetch(`${API_URL}/history/${sessionId}`, {
+      headers: authHeaders(token),
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.session;
+  } catch {
+    return null;
+  }
 }
 
-/** Add a message to a session */
-export function addMessage(
+export async function addMessage(
+  token: string,
   sessionId: string,
-  userId: string,
-  role: 'user' | 'assistant',
+  role: "user" | "assistant",
   text: string
-): ChatMessage | null {
-  const session = sessions.find((s) => s.id === sessionId && s.userId === userId)
-  if (!session) return null
-
-  const message: ChatMessage = {
-    id: randomUUID(),
-    role,
-    text,
-    createdAt: new Date().toISOString(),
+): Promise<ChatMessage | null> {
+  try {
+    const res = await fetch(`${API_URL}/history/${sessionId}/messages`, {
+      method: "POST",
+      headers: authHeaders(token),
+      credentials: "include",
+      body: JSON.stringify({ role, text }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.message;
+  } catch {
+    return null;
   }
-  session.messages.push(message)
-  session.updatedAt = new Date().toISOString()
-
-  // Auto-update session title from first user message
-  if (session.messages.length === 1 && role === 'user') {
-    session.title = text.length > 50 ? `${text.slice(0, 50)}...` : text
-  }
-
-  return message
 }
 
-/** Delete a session */
-export function deleteSession(sessionId: string, userId: string): boolean {
-  const index = sessions.findIndex((s) => s.id === sessionId && s.userId === userId)
-  if (index === -1) return false
-  sessions.splice(index, 1)
-  return true
+export async function deleteSession(
+  token: string,
+  sessionId: string
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_URL}/history/${sessionId}`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+      credentials: "include",
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }

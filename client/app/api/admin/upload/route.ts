@@ -7,23 +7,40 @@
  * - Stores chunks in the in-memory knowledge store
  */
 
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-store'
 import { splitIntoChunks, generateEmbeddings } from '@/lib/rag'
 import { addChunks, type DocumentChunk } from '@/lib/knowledge-store'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export const maxDuration = 120
 
 export async function POST(req: Request) {
   try {
-    // Validate session
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get('session_id')?.value
-    if (!sessionId || !getSessionUser(sessionId)) {
+    // Validate session and admin role via backend
+    const authHeader = req.headers.get('authorization') || ''
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
+    if (!token) {
       return NextResponse.json(
         { error: 'You must be signed in to upload documents.' },
         { status: 401 }
+      )
+    }
+
+    const meRes = await fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const meData = await meRes.json()
+    if (!meRes.ok || !meData.user) {
+      return NextResponse.json(
+        { error: 'You must be signed in to upload documents.' },
+        { status: 401 }
+      )
+    }
+    if (meData.user.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Admin access required.' },
+        { status: 403 }
       )
     }
 

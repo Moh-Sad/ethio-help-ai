@@ -1,18 +1,19 @@
-import { cookies } from 'next/headers'
-import { getSessionUser } from '@/lib/auth-store'
+import { NextResponse } from 'next/server'
 
-export async function GET() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+export async function GET(req: Request) {
   try {
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get('session_id')?.value
-
-    if (!sessionId) {
-      return Response.json({ user: null })
+    const authHeader = req.headers.get('authorization') || ''
+    const res = await fetch(`${API_URL}/auth/me`, {
+      headers: { Authorization: authHeader },
+    })
+    if (!res.ok) {
+      return NextResponse.json({ user: null })
     }
-
-    const user = getSessionUser(sessionId)
-    return Response.json({ user: user || null })
+    const data = await res.json()
+    return NextResponse.json({ user: data.user || null })
   } catch {
-    return Response.json({ user: null })
+    return NextResponse.json({ user: null })
   }
 }

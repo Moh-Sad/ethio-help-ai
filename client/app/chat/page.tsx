@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
-import useSWR, { mutate as globalMutate } from 'swr'
 import { Navbar } from '@/components/navbar'
 import { ChatMessageList } from '@/components/chat-message-list'
 import { ChatInput } from '@/components/chat-input'
@@ -11,29 +10,54 @@ import { ChatSidebar } from '@/components/chat-sidebar'
 import { useAuth } from '@/components/auth-provider'
 import { MessageSquare, PanelLeftOpen } from 'lucide-react'
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json())
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export default function ChatPage() {
-  const { user } = useAuth()
+  const { user, token } = useAuth()
   const [input, setInput] = useState('')
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sessions, setSessions] = useState<
+    Array<{ id: string; title: string; createdAt: string; updatedAt: string }>
+  >([])
   const [restoredMessages, setRestoredMessages] = useState<
     Array<{ id: string; role: 'user' | 'assistant'; parts: Array<{ type: 'text'; text: string }> }>
   >([])
 
   // Fetch history sessions when user is logged in
-  const { data: historyData } = useSWR(
-    user ? '/api/chat/history' : null,
-    fetcher,
-    { refreshInterval: 5000 }
-  )
-  const sessions = historyData?.sessions ?? []
+  const fetchSessions = useCallback(async () => {
+    if (!user || !token) {
+      setSessions([])
+      return
+    }
+    try {
+      const res = await fetch(`${API_URL}/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      })
+      const data = await res.json()
+      setSessions(data.sessions || [])
+    } catch {
+      // Silently fail
+    }
+  }, [user, token])
+
+  useEffect(() => {
+    fetchSessions()
+  }, [fetchSessions])
+
+  // Periodically refresh sessions
+  useEffect(() => {
+    if (!user || !token) return
+    const interval = setInterval(fetchSessions, 5000)
+    return () => clearInterval(interval)
+  }, [user, token, fetchSessions])
 
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: '/api/chat',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
         prepareSendMessagesRequest: ({ id, messages }) => ({
           body: {
             messages,
@@ -42,7 +66,7 @@ export default function ChatPage() {
           },
         }),
       }),
-    [activeSessionId]
+    [activeSessionId, token]
   )
 
   const { messages, sendMessage, status, setMessages } = useChat({
@@ -51,19 +75,18 @@ export default function ChatPage() {
 
   const isLoading = status === 'streaming' || status === 'submitted'
 
-  // Watch response headers for new session id
+  // After first response completes, refresh history to pick up new session
   useEffect(() => {
     if (
       messages.length > 0 &&
       !activeSessionId &&
       user
     ) {
-      // After first response completes, refresh history to pick up new session
       if (status === 'ready' && messages.length >= 2) {
-        globalMutate('/api/chat/history')
+        fetchSessions()
       }
     }
-  }, [messages.length, activeSessionId, user, status])
+  }, [messages.length, activeSessionId, user, status, fetchSessions])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,12 +104,15 @@ export default function ChatPage() {
 
   const handleSelectSession = useCallback(
     async (sessionId: string) => {
+      if (!token) return
       setActiveSessionId(sessionId)
       setSidebarOpen(false)
 
-      // Load session messages
       try {
-        const res = await fetch(`/api/chat/history/${sessionId}`)
+        const res = await fetch(`${API_URL}/history/${sessionId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+        })
         const data = await res.json()
         if (data.session?.messages) {
           const converted = data.session.messages.map(
@@ -103,18 +129,23 @@ export default function ChatPage() {
         // Silently fail
       }
     },
-    [setMessages]
+    [token, setMessages]
   )
 
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
-      await fetch(`/api/chat/history?id=${sessionId}`, { method: 'DELETE' })
-      globalMutate('/api/chat/history')
+      if (!token) return
+      await fetch(`${API_URL}/history/${sessionId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      })
+      fetchSessions()
       if (activeSessionId === sessionId) {
         handleNewChat()
       }
     },
-    [activeSessionId, handleNewChat]
+    [token, activeSessionId, handleNewChat, fetchSessions]
   )
 
   // Combine restored + live messages

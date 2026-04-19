@@ -2,28 +2,28 @@
  * GET /api/chat/history/[sessionId] - Get full session with messages
  */
 
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-store'
-import { getSession } from '@/lib/chat-history'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   const { sessionId } = await params
-  const cookieStore = await cookies()
-  const sid = cookieStore.get('session_id')?.value
-  if (!sid) {
+  const token = req.headers.get('authorization')?.replace('Bearer ', '') || ''
+
+  if (!token) {
     return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
   }
-  const user = getSessionUser(sid)
-  if (!user) {
-    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+
+  try {
+    const res = await fetch(`${API_URL}/history/${sessionId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    return NextResponse.json(data, { status: res.status })
+  } catch {
+    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 })
   }
-  const session = getSession(sessionId, user.id)
-  if (!session) {
-    return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
-  }
-  return NextResponse.json({ session })
 }

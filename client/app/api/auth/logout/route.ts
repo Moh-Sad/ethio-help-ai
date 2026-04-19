@@ -1,19 +1,12 @@
-import { cookies } from 'next/headers'
-import { deleteSession } from '@/lib/auth-store'
+import { NextResponse } from 'next/server'
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export async function POST() {
   try {
-    const cookieStore = await cookies()
-    const sessionId = cookieStore.get('session_id')?.value
-
-    if (sessionId) {
-      deleteSession(sessionId)
-    }
-
-    cookieStore.delete('session_id')
-
-    return Response.json({ success: true })
+    await fetch(`${API_URL}/auth/logout`, { method: 'POST' })
+    return NextResponse.json({ success: true })
   } catch {
-    return Response.json({ error: 'Something went wrong.' }, { status: 500 })
+    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 })
   }
 }
