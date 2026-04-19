@@ -62,7 +62,7 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-md">
-      <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+      <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <span className="text-sm font-bold text-primary-foreground">E</span>
@@ -142,7 +142,7 @@ export function Navbar() {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-1">
+            <div className="flex gap-5">
               <Link
                 href="/login"
                 className={cn(
