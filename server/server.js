@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 import authRoutes from "./routes/auth.js";
 import historyRoutes from "./routes/history.js";
 import askRoutes from "./routes/ask.js";
+import documentRoutes from "./routes/documents.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 
 dotenv.config();
@@ -25,6 +26,7 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
+// Rate limiters
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
@@ -41,18 +43,32 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+const askLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { error: "Too many questions. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply rate limiters
 app.use("/auth", authLimiter);
 app.use("/history", apiLimiter);
-app.use("/ask", apiLimiter);
+app.use("/ask", askLimiter);
+app.use("/documents", apiLimiter);
 
+// Register routes
 app.use("/auth", authRoutes);
 app.use("/history", historyRoutes);
 app.use("/ask", askRoutes);
+app.use("/documents", documentRoutes);
 
+// Root endpoint
 app.get("/", (_req, res) => {
   res.json({ status: "ok", message: "EthioHelp AI API running" });
 });
 
+// Health check
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
@@ -61,8 +77,10 @@ app.get("/health", (_req, res) => {
   });
 });
 
+// Error handler (must be last)
 app.use(errorHandler);
 
+// Environment validation
 const PORT = process.env.PORT || 8000;
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -76,12 +94,18 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_key") {
+  console.warn("WARNING: OPENAI_API_KEY not set. AI features will not work.");
+}
+
+// Connect to MongoDB and start server
 mongoose
   .connect(MONGO_URI)
   .then(() => {
     console.log("Connected to MongoDB");
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      console.log(`API: http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
