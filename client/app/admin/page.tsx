@@ -16,6 +16,7 @@ import {
   Database,
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface DocumentsData {
@@ -24,7 +25,7 @@ interface DocumentsData {
 }
 
 export default function AdminPage() {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, token, isLoading: authLoading } = useAuth()
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -34,7 +35,7 @@ export default function AdminPage() {
   } | null>(null)
 
   const { data: docs } = useSWR<DocumentsData>(
-    user ? '/api/admin/documents' : null,
+    user ? `${API_URL}/documents` : null,
     fetcher
   )
 
@@ -45,9 +46,12 @@ export default function AdminPage() {
       setResult(null)
 
       try {
-        const res = await fetch('/api/admin/upload', {
+        const res = await fetch(`${API_URL}/documents/upload`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify({ title, content }),
         })
 
@@ -64,7 +68,7 @@ export default function AdminPage() {
         })
         setTitle('')
         setContent('')
-        mutate('/api/admin/documents')
+        mutate(`${API_URL}/documents`)
       } catch {
         setResult({ type: 'error', message: 'Network error. Please try again.' })
       } finally {
@@ -115,6 +119,34 @@ export default function AdminPage() {
                 Sign up
               </Link>
             </p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Not an admin
+  if (user.role !== 'admin') {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Navbar />
+        <main className="flex flex-1 items-center justify-center px-4">
+          <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8">
+            <div className="mb-6 flex flex-col items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/10">
+                <Lock className="h-6 w-6 text-accent" />
+              </div>
+              <h1 className="text-xl font-bold text-card-foreground">Restricted Access</h1>
+              <p className="text-center text-sm text-muted-foreground">
+                The admin panel is restricted to administrators only. You are logged in as <span className="font-medium text-foreground">{user.name}</span>.
+              </p>
+            </div>
+            <Link
+              href="/chat"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Go to Chat
+            </Link>
           </div>
         </main>
       </div>

@@ -4,51 +4,66 @@
  * DELETE /api/chat/history?id=xxx - Delete a chat session
  */
 
-import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-store'
-import {
-  getUserSessions,
-  createSession,
-  deleteSession,
-} from '@/lib/chat-history'
 
-async function getUser() {
-  const cookieStore = await cookies()
-  const sessionId = cookieStore.get('session_id')?.value
-  if (!sessionId) return null
-  return getSessionUser(sessionId)
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+function getToken(req: Request): string {
+  return req.headers.get('authorization')?.replace('Bearer ', '') || ''
 }
 
-export async function GET() {
-  const user = await getUser()
-  if (!user) {
+export async function GET(req: Request) {
+  const token = getToken(req)
+  if (!token) return NextResponse.json({ sessions: [] })
+
+  try {
+    const res = await fetch(`${API_URL}/history`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch {
     return NextResponse.json({ sessions: [] })
   }
-  const sessions = getUserSessions(user.id)
-  return NextResponse.json({ sessions })
 }
 
 export async function POST(req: Request) {
-  const user = await getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+  const token = getToken(req)
+  if (!token) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+
+  try {
+    const body = await req.json()
+    const res = await fetch(`${API_URL}/history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    return NextResponse.json(data, { status: res.status })
+  } catch {
+    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 })
   }
-  const { title } = await req.json()
-  const session = createSession(user.id, title || 'New Chat')
-  return NextResponse.json({ session })
 }
 
 export async function DELETE(req: Request) {
-  const user = await getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
-  }
+  const token = getToken(req)
+  if (!token) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 })
+
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
-  if (!id) {
-    return NextResponse.json({ error: 'Missing session id.' }, { status: 400 })
+  if (!id) return NextResponse.json({ error: 'Missing session id.' }, { status: 400 })
+
+  try {
+    const res = await fetch(`${API_URL}/history/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    const data = await res.json()
+    return NextResponse.json(data, { status: res.status })
+  } catch {
+    return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 })
   }
-  deleteSession(id, user.id)
-  return NextResponse.json({ ok: true })
 }

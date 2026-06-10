@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { User, Bot, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface MessageLike {
   id: string
@@ -32,7 +34,7 @@ export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="mx-auto max-w-3xl px-4 py-6">
+      <div className="mx-auto max-w-4xl px-4 py-6">
         <div className="flex flex-col gap-4">
           {messages.map((message) => {
             const isUser = message.role === 'user'
@@ -67,7 +69,15 @@ export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
                       : 'border border-border bg-card text-card-foreground'
                   )}
                 >
-                  <div className="whitespace-pre-wrap">{text}</div>
+                  {isUser ? (
+                    <div className="whitespace-pre-wrap break-words">{text}</div>
+                  ) : (
+                    <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {text}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
               </div>
             )

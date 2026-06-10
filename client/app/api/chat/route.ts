@@ -5,31 +5,28 @@
  * - Embeds the latest question
  * - Retrieves relevant chunks from the knowledge store
  * - Streams an AI response grounded in the retrieved context
+ * - Saves messages to backend history if user is authenticated
  */
 
-import { cookies } from 'next/headers'
-import {
-  streamText,
-  convertToModelMessages,
-  consumeStream,
-  type UIMessage,
-} from 'ai'
-import { retrieveChunks, getChunkCount } from '@/lib/knowledge-store'
-import { generateQueryEmbedding, buildRAGPrompt } from '@/lib/rag'
-import { isProcessQuestion, buildProcessPrompt } from '@/lib/agent'
-import { getSessionUser } from '@/lib/auth-store'
-import { addMessage, createSession } from '@/lib/chat-history'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export const maxDuration = 60
 
+/**
+ * Helper to format a UI Message Stream chunk as an SSE line.
+ * AI SDK v6 useChat expects: `data: <JSON>\r\n\r\n`
+ */
+function sseEvent(obj: Record<string, unknown>): string {
+  return `data: ${JSON.stringify(obj)}\r\n\r\n`
+}
+
 export async function POST(req: Request) {
-  const { messages, sessionId }: { messages: UIMessage[]; sessionId?: string } =
+  const { messages, sessionId }: { messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }> }>; sessionId?: string } =
     await req.json()
 
-  // Determine current user for history tracking
-  const cookieStore = await cookies()
-  const authSessionId = cookieStore.get('session_id')?.value
-  const user = authSessionId ? getSessionUser(authSessionId) : null
+  // Extract token from Authorization header
+  const authHeader = req.headers.get('authorization') || ''
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : ''
 
   // Extract the latest user message text from parts
   const lastUserMessage = messages.filter((m) => m.role === 'user').pop()
@@ -39,58 +36,131 @@ export async function POST(req: Request) {
       .map((p) => p.text)
       .join('') || ''
 
-  // If there are documents in the knowledge base, do RAG retrieval
-  let systemPrompt: string
-
-  if (getChunkCount() > 0 && questionText) {
-    const queryEmbedding = await generateQueryEmbedding(questionText)
-    const relevantChunks = retrieveChunks(queryEmbedding, 4)
-
-    // Use the process prompt if the question is process-related, otherwise use standard RAG
-    if (isProcessQuestion(questionText)) {
-      systemPrompt = buildProcessPrompt(questionText, relevantChunks)
-    } else {
-      systemPrompt = buildRAGPrompt(questionText, relevantChunks)
-    }
-  } else {
-    systemPrompt = `You are EthioHelp AI, a helpful assistant for the Ethiopian community. You help with questions about government services, education, health, jobs, and business processes in Ethiopia.
-
-Currently, no documents have been uploaded to the knowledge base yet. You can still try to help with general knowledge, but please let the user know that for the most accurate and specific information, an admin should upload relevant documents through the Admin panel.
-
-Be friendly, helpful, and honest about the limitations of your current knowledge.`
+  if (!questionText) {
+    return new Response('No question provided', { status: 400 })
   }
 
-  // Save user message to history if logged in
+  // Save user message to backend history if authenticated
   let activeSessionId = sessionId
-  if (user && questionText) {
-    if (!activeSessionId) {
-      const session = createSession(user.id, questionText.length > 50 ? `${questionText.slice(0, 50)}...` : questionText)
-      activeSessionId = session.id
+  if (token && questionText) {
+    try {
+      if (!activeSessionId) {
+        const createRes = await fetch(`${API_URL}/history`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            title: questionText.length > 50 ? `${questionText.slice(0, 50)}...` : questionText,
+          }),
+        })
+        const createData = await createRes.json()
+        if (createData.session) {
+          activeSessionId = createData.session.id
+        }
+      }
+
+      if (activeSessionId) {
+        await fetch(`${API_URL}/history/${activeSessionId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ role: 'user', text: questionText }),
+        })
+      }
+    } catch {
+      // Silently fail history save
     }
-    addMessage(activeSessionId, user.id, 'user', questionText)
   }
 
-  const result = streamText({
-    model: 'openai/gpt-4o-mini',
-    system: systemPrompt,
-    messages: await convertToModelMessages(messages),
-    abortSignal: req.signal,
-    async onFinish({ text }) {
-      // Save assistant response to history
-      if (user && activeSessionId && text) {
-        addMessage(activeSessionId, user.id, 'assistant', text)
-      }
+  // Forward the chat query to the Express backend
+  const askRes = await fetch(`${API_URL}/ask`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
+    body: JSON.stringify({
+      query: questionText,
+      stream: true,
+    }),
   })
 
-  const headers: Record<string, string> = {}
-  if (activeSessionId) {
-    headers['X-Session-Id'] = activeSessionId
+  if (!askRes.ok || !askRes.body) {
+    const errorText = await askRes.text()
+    return new Response(errorText || 'Backend error', { status: askRes.status || 500 })
   }
 
-  return result.toUIMessageStreamResponse({
-    originalMessages: messages,
-    consumeSseStream: consumeStream,
+  // Transform the Express raw text stream into AI SDK v6 UI Message Stream SSE format.
+  // The useChat hook's DefaultChatTransport expects SSE lines with JSON chunks
+  // conforming to the uiMessageChunkSchema (text-start, text-delta, text-end, etc.)
+  const textPartId = 'text-1'
+  let fullResponse = ''
+
+  const transformStream = new TransformStream({
+    start(controller) {
+      // Emit the stream preamble events
+      controller.enqueue(
+        new TextEncoder().encode(
+          sseEvent({ type: 'start' }) +
+          sseEvent({ type: 'start-step' }) +
+          sseEvent({ type: 'text-start', id: textPartId })
+        )
+      )
+    },
+    transform(chunk, controller) {
+      const text = new TextDecoder().decode(chunk)
+      fullResponse += text
+      // Emit a text-delta event for each chunk
+      controller.enqueue(
+        new TextEncoder().encode(
+          sseEvent({ type: 'text-delta', id: textPartId, delta: text })
+        )
+      )
+    },
+    async flush(controller) {
+      // Emit the stream epilogue events
+      controller.enqueue(
+        new TextEncoder().encode(
+          sseEvent({ type: 'text-end', id: textPartId }) +
+          sseEvent({ type: 'finish-step' }) +
+          sseEvent({ type: 'finish' }) +
+          'data: [DONE]\n\n'
+        )
+      )
+
+      // Save assistant response to backend history
+      if (token && activeSessionId && fullResponse) {
+        try {
+          await fetch(`${API_URL}/history/${activeSessionId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ role: 'assistant', text: fullResponse }),
+          })
+        } catch {
+          // Silently fail
+        }
+      }
+    }
+  })
+
+  const headers = new Headers()
+  headers.set('Content-Type', 'text/event-stream')
+  headers.set('Cache-Control', 'no-cache')
+  headers.set('Connection', 'keep-alive')
+  headers.set('x-vercel-ai-ui-message-stream', 'v1')
+  headers.set('x-accel-buffering', 'no')
+  if (activeSessionId) {
+    headers.set('X-Session-Id', activeSessionId)
+  }
+
+  return new Response(askRes.body.pipeThrough(transformStream), {
     headers,
   })
 }

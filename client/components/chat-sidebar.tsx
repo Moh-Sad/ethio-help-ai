@@ -70,7 +70,7 @@ export function ChatSidebar({
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-[57px] z-50 flex h-[calc(100vh-57px)] w-72 flex-col border-r border-border bg-card transition-transform duration-200 lg:relative lg:top-0 lg:z-auto lg:h-auto lg:translate-x-0',
+          'fixed left-0 top-[57px] z-50 flex h-[calc(100vh-57px)] w-72 flex-col overflow-y-auto border-r border-border bg-card transition-transform duration-200 lg:relative lg:top-0 lg:z-auto lg:h-auto lg:overflow-y-visible lg:translate-x-0',
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -100,7 +100,7 @@ export function ChatSidebar({
         </div>
 
         {/* Session list */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 p-2">
           {!user ? (
             <div className="flex flex-col items-center gap-3 px-3 py-8 text-center">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
