@@ -165,38 +165,35 @@ export function isProcessQuestion(question) {
 }
 
 /**
- * Generate an answer using OpenAI GPT.
+ * Generate an answer using Google Gemini.
  * Supports streaming responses.
  *
  * @param {string} systemPrompt - The system prompt with context
  * @param {Object} options
  * @param {boolean} [options.stream=false] - Whether to stream the response
- * @returns {Promise<string|ReadableStream>}
+ * @returns {Promise<string|import('stream').Readable>}
  */
 export async function generateAnswer(systemPrompt, { stream = false } = {}) {
-  const res = await axios.post(
-    "https://api.openai.com/v1/chat/completions",
-    {
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-      ],
-      max_tokens: 2048,
-      temperature: 0.3,
-      stream,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      ...(stream && { responseType: "stream" }),
-    }
-  );
+  const { GoogleGenerativeAI } = await import("@google/generative-ai");
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
   if (stream) {
-    return res.data; // Returns the readable stream
+    const result = await model.generateContentStream({
+      contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+    });
+    
+    const { Readable } = await import("stream");
+    return Readable.from((async function* () {
+      for await (const chunk of result.stream) {
+        yield chunk.text();
+      }
+    })());
   }
 
-  return res.data.choices[0].message.content;
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
+  });
+
+  return result.response.text();
 }

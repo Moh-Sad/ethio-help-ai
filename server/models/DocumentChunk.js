@@ -28,7 +28,7 @@ const documentChunkSchema = new mongoose.Schema(
     embedding: {
       type: [Number],
       required: true,
-      // 1536 dimensions for text-embedding-3-small
+      // 1536 dimensions (padded from 768 for Gemini)
     },
     chunkIndex: {
       type: Number,

@@ -1,9 +1,11 @@
-import axios from "axios";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const getGenAI = () => new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 /**
  * Generate an embedding vector for a single text string.
- * Uses OpenAI text-embedding-3-small (1536 dimensions).
- * This model has good multilingual support including Amharic and Arabic.
+ * Uses Google Gemini gemini-embedding-2, leveraging Matryoshka Representation Learning
+ * to slice the 3072-dimensional vector down to 1536 dimensions.
  *
  * @param {string} text - The text to embed
  * @returns {Promise<number[]>} The embedding vector (1536 dimensions)
@@ -13,20 +15,18 @@ export async function getEmbedding(text) {
     throw new Error("Text is required for embedding generation");
   }
 
-  const res = await axios.post(
-    "https://api.openai.com/v1/embeddings",
-    {
-      model: "text-embedding-3-small",
-      input: text.trim(),
-    },
-    { 
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-    }
-  );
-
-  return res.data.data[0].embedding;
+  const genAI = getGenAI();
+  const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+  const result = await model.embedContent(text.trim());
+  
+  let vector = result.embedding.values;
+  
+  // Slice to 1536 dimensions using Matryoshka Representation Learning properties
+  if (vector.length > 1536) {
+    vector = vector.slice(0, 1536);
+  }
+  
+  return vector;
 }
 
 /**
@@ -41,23 +41,23 @@ export async function getEmbeddings(texts) {
     throw new Error("Texts array is required for batch embedding generation");
   }
 
-  // OpenAI supports batch embedding (up to ~8191 tokens per input)
-  const res = await axios.post(
-    "https://api.openai.com/v1/embeddings",
-    {
-      model: "text-embedding-3-small",
-      input: texts.map((t) => t.trim()),
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-    }
-  );
+  const genAI = getGenAI();
+  const model = genAI.getGenerativeModel({ model: "gemini-embedding-2" });
+  
+  const requests = texts.map((t) => ({
+    content: { role: "user", parts: [{ text: t.trim() }] },
+  }));
 
-  // Sort by index to ensure correct ordering
-  const sorted = res.data.data.sort((a, b) => a.index - b.index);
-  return sorted.map((item) => item.embedding);
+  const result = await model.batchEmbedContents({ requests });
+  
+  return result.embeddings.map((e) => {
+    let vector = e.values;
+    // Slice to 1536 dimensions using Matryoshka Representation Learning properties
+    if (vector.length > 1536) {
+      vector = vector.slice(0, 1536);
+    }
+    return vector;
+  });
 }
 
 /**

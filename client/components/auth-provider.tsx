@@ -14,7 +14,7 @@ interface AuthContextType {
   token: string | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ error?: string }>
-  signup: (name: string, email: string, password: string) => Promise<{ error?: string }>
+  signup: (name: string, email: string, password: string) => Promise<{ error?: string, requiresVerification?: boolean, message?: string }>
   logout: () => Promise<void>
 }
 
@@ -66,6 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(data.user)
       setToken(data.token)
       localStorage.setItem('ethiohelp_token', data.token)
+      // Also set as cookie for middleware access
+      document.cookie = `auth-token=${data.token}; path=/; max-age=86400; samesite=lax`
       return {}
     } catch {
       return { error: 'Network error. Please try again.' }
@@ -83,9 +85,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json()
       if (!res.ok) return { error: data.error || 'Signup failed.' }
 
+      if (data.requiresVerification) {
+        return { requiresVerification: true, message: data.message }
+      }
+
+      // Fallback for backward compatibility if verification is disabled
       setUser(data.user)
       setToken(data.token)
       localStorage.setItem('ethiohelp_token', data.token)
+      document.cookie = `auth-token=${data.token}; path=/; max-age=86400; samesite=lax`
       return {}
     } catch {
       return { error: 'Network error. Please try again.' }
@@ -105,6 +113,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
     setToken(null)
     localStorage.removeItem('ethiohelp_token')
+    // Clear the auth cookie
+    document.cookie = 'auth-token=; path=/; max-age=0; samesite=lax'
   }, [token])
 
   const value = useMemo(

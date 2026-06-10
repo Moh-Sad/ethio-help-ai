@@ -1,6 +1,8 @@
 import express from "express";
+import crypto from "crypto";
 import User from "../models/User.js";
 import { generateToken, requireAuth } from "../middleware/auth.js";
+import { sendVerificationEmail } from "../utils/email.js";
 
 const router = express.Router();
 
@@ -21,25 +23,27 @@ router.post("/signup", async (req, res, next) => {
       return res.status(409).json({ error: "An account with this email already exists." });
     }
 
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password,
+      isVerified: false,
+      verificationToken,
+      verificationTokenExpiresAt,
     });
 
-    const token = generateToken(user._id);
+    await sendVerificationEmail(user.email, verificationToken);
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/",
+    res.status(201).json({ 
+      requiresVerification: true, 
+      message: "Please check your email to verify your account." 
     });
-
-    res.status(201).json({ user: user.toSafeObject(), token });
   } catch (error) {
-    next(error);
+    console.error("Signup error:", error);
+    res.status(500).json({ error: "Internal server error." });
   }
 });
 
@@ -51,9 +55,13 @@ router.post("/login", async (req, res, next) => {
       return res.status(400).json({ error: "Email and password are required." });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password");
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select("+password +isVerified");
     if (!user) {
       return res.status(401).json({ error: "Invalid email or password." });
+    }
+
+    if (!user.isVerified) {
+      return res.status(403).json({ error: "Please verify your email address before logging in." });
     }
 
     const isMatch = await user.comparePassword(password);
@@ -72,6 +80,34 @@ router.post("/login", async (req, res, next) => {
     });
 
     res.json({ user: user.toSafeObject(), token });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post("/verify-email", async (req, res, next) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ error: "Verification token is required." });
+    }
+
+    const user = await User.findOne({
+      verificationToken: token,
+      verificationTokenExpiresAt: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: "Invalid or expired verification token." });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpiresAt = undefined;
+    await user.save();
+
+    res.json({ success: true, message: "Email verified successfully. You can now log in." });
   } catch (error) {
     next(error);
   }

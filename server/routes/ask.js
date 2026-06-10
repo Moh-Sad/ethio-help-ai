@@ -18,7 +18,7 @@ const router = express.Router();
  *
  * Body: { query: string, category?: string, stream?: boolean }
  */
-router.post("/", requireAuth, async (req, res, next) => {
+router.post("/", async (req, res, next) => {
   try {
     const { query, category, stream: wantStream } = req.body;
 

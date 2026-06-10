@@ -16,6 +16,7 @@ import {
   Database,
 } from 'lucide-react'
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 interface DocumentsData {
@@ -34,7 +35,7 @@ export default function AdminPage() {
   } | null>(null)
 
   const { data: docs } = useSWR<DocumentsData>(
-    user ? '/api/admin/documents' : null,
+    user ? `${API_URL}/documents` : null,
     fetcher
   )
 
@@ -45,7 +46,7 @@ export default function AdminPage() {
       setResult(null)
 
       try {
-        const res = await fetch('/api/admin/upload', {
+        const res = await fetch(`${API_URL}/documents/upload`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -67,7 +68,7 @@ export default function AdminPage() {
         })
         setTitle('')
         setContent('')
-        mutate('/api/admin/documents')
+        mutate(`${API_URL}/documents`)
       } catch {
         setResult({ type: 'error', message: 'Network error. Please try again.' })
       } finally {

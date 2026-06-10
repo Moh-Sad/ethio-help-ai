@@ -94,8 +94,8 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
-if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === "your_key") {
-  console.warn("WARNING: OPENAI_API_KEY not set. AI features will not work.");
+if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "your_key") {
+  console.warn("WARNING: GEMINI_API_KEY not set. AI features will not work.");
 }
 
 // Connect to MongoDB and start server

@@ -1,8 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useEffect } from 'react'
-import { useChat } from '@ai-sdk/react'
-import { DefaultChatTransport } from 'ai'
+import { useAuthChat } from '@/hooks/use-auth-chat'
 import { Navbar } from '@/components/navbar'
 import { ChatMessageList } from '@/components/chat-message-list'
 import { ChatInput } from '@/components/chat-input'
@@ -53,24 +52,9 @@ export default function ChatPage() {
     return () => clearInterval(interval)
   }, [user, token, fetchSessions])
 
-  const transport = React.useMemo(
-    () =>
-      new DefaultChatTransport({
-        api: '/api/chat',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        prepareSendMessagesRequest: ({ id, messages }) => ({
-          body: {
-            messages,
-            id,
-            sessionId: activeSessionId,
-          },
-        }),
-      }),
-    [activeSessionId, token]
-  )
-
-  const { messages, sendMessage, status, setMessages } = useChat({
-    transport,
+  const { messages, sendMessage, status, setMessages, error } = useAuthChat({
+    token,
+    sessionId: activeSessionId
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
@@ -152,7 +136,7 @@ export default function ChatPage() {
   const displayMessages = messages.length > 0 ? messages : restoredMessages
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col">
       <Navbar />
 
       <div className="flex flex-1 overflow-hidden">
@@ -168,7 +152,7 @@ export default function ChatPage() {
         />
 
         {/* Main chat area */}
-        <main className="flex flex-1 flex-col">
+        <main className="flex flex-1 flex-col overflow-hidden">
           {/* Mobile sidebar toggle */}
           {!sidebarOpen && user && (
             <div className="flex items-center border-b border-border px-4 py-2 lg:hidden">
@@ -229,7 +213,15 @@ export default function ChatPage() {
               </div>
             </div>
           ) : (
-            <ChatMessageList messages={displayMessages} isLoading={isLoading} />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <ChatMessageList messages={displayMessages} isLoading={isLoading} />
+              {error && (
+                <div className="mx-auto my-4 max-w-2xl rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive shadow-sm">
+                  <p className="font-semibold">Connection Error</p>
+                  <p>Unable to connect to the AI service. Please check your network or try again later.</p>
+                </div>
+              )}
+            </div>
           )}
 
           <ChatInput
