@@ -87,12 +87,26 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-md">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3" dir={isRTL ? 'rtl' : 'ltr'}>
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <span className="text-sm font-bold text-primary-foreground">E</span>
+        <Link href="/" className="flex items-center gap-2 group">
+          <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
+            <img
+              src="/icon.svg"
+              alt="EthioHelper Logo"
+              className="h-full w-full object-contain"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (target.src.endsWith('/icon.svg')) {
+                  target.src = '/icon.png';
+                } else if (target.src.endsWith('/icon.png')) {
+                  target.src = '/web-app-manifest-192x192.png';
+                } else {
+                  target.style.display = 'none';
+                }
+              }}
+            />
           </div>
-          <span className="text-lg font-bold text-foreground">
-            EthioHelp <span className="text-primary">AI</span>
+          <span className="text-xl font-bold tracking-tight text-foreground transition-colors duration-300 group-hover:text-primary">
+            EthioHelp <span className="text-primary transition-colors duration-300 group-hover:text-primary/80">AI</span>
           </span>
         </Link>
 

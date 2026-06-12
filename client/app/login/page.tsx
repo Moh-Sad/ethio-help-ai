@@ -36,9 +36,23 @@ export default function LoginPage() {
       <Navbar />
       <main className="flex flex-1 items-center justify-center px-4 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <span className="text-lg font-bold text-primary-foreground">E</span>
+          <div className="text-center">
+            <div className="relative top-2 mx-auto mb-5 flex h-28 w-28 items-center justify-center overflow-hidden transition-all duration-300 hover:scale-105">
+              <img
+                src="/icon.svg"
+                alt="EthioHelper Logo"
+                className="h-full w-full object-contain"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  if (target.src.endsWith('/icon.svg')) {
+                    target.src = '/icon.png';
+                  } else if (target.src.endsWith('/icon.png')) {
+                    target.src = '/web-app-manifest-192x192.png';
+                  } else {
+                    target.style.display = 'none';
+                  }
+                }}
+              />
             </div>
             <h1 className="text-2xl font-bold text-foreground">{t('login.title')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
