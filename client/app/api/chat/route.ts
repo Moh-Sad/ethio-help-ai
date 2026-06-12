@@ -21,7 +21,7 @@ function sseEvent(obj: Record<string, unknown>): string {
 }
 
 export async function POST(req: Request) {
-  const { messages, sessionId }: { messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }> }>; sessionId?: string } =
+  const { messages, sessionId, language }: { messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }> }>; sessionId?: string; language?: string } =
     await req.json()
 
   // Extract token from Authorization header
@@ -86,6 +86,7 @@ export async function POST(req: Request) {
     body: JSON.stringify({
       query: questionText,
       stream: true,
+      language: language || 'en',
     }),
   })
 

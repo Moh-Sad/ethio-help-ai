@@ -3,6 +3,7 @@ import { getEmbedding } from "../services/embedding.js";
 import { search } from "../services/retrieval.js";
 import { buildPrompt, buildProcessPrompt, isProcessQuestion, generateAnswer } from "../services/rag.js";
 import { detectLanguage } from "../services/language.js";
+import { translateToEnglish } from "../services/translation.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -10,17 +11,17 @@ const router = express.Router();
 /**
  * POST /ask
  * Main RAG question-answering endpoint.
- * - Authenticates user
  * - Detects question language
- * - Embeds the query
+ * - Translates query to English for embedding/search only
+ * - Embeds the English query
  * - Retrieves relevant documents via vector search
- * - Generates a contextualized answer
+ * - Generates a contextualized answer directly in the user's language
  *
- * Body: { query: string, category?: string, stream?: boolean }
+ * Body: { query: string, category?: string, stream?: boolean, language?: string }
  */
 router.post("/", async (req, res, next) => {
   try {
-    const { query, category, stream: wantStream } = req.body;
+    const { query, category, stream: wantStream, language: clientLang } = req.body;
 
     // Validate input
     if (!query || typeof query !== "string" || query.trim().length === 0) {
@@ -33,33 +34,46 @@ router.post("/", async (req, res, next) => {
 
     const cleanQuery = query.trim();
 
-    // 1. Detect language
-    const detectedLang = detectLanguage(cleanQuery);
+    // 1. Determine language: prefer explicit client language, fallback to detection
+    const userLang = clientLang && ["en", "am", "ar"].includes(clientLang)
+      ? clientLang
+      : detectLanguage(cleanQuery);
 
-    // 2. Generate embedding for the query
-    const embedding = await getEmbedding(cleanQuery);
+    // 2. Translate query to English ONLY for embedding/search
+    let englishQuery = cleanQuery;
+    if (userLang !== "en") {
+      try {
+        englishQuery = await translateToEnglish(cleanQuery, userLang);
+      } catch (err) {
+        console.error("Translation to English failed, using original query:", err.message);
+      }
+    }
 
-    // 3. Search for relevant documents
+    // 3. Generate embedding for the English query
+    const embedding = await getEmbedding(englishQuery);
+
+    // 4. Search for relevant documents (always in English)
     const docs = await search(embedding, {
       topK: 5,
       category: category || undefined,
     });
 
-    // 4. Determine if this is a process question
-    const isProcess = isProcessQuestion(cleanQuery);
+    // 5. Determine if this is a process question (check both original and English)
+    const isProcess = isProcessQuestion(cleanQuery) || isProcessQuestion(englishQuery);
 
-    // 5. Build the appropriate prompt
+    // 6. Build the prompt — generate directly in the user's language
+    //    We pass the English query for context matching but set language to userLang
+    //    so Gemini generates the response natively in that language.
     const prompt = isProcess
-      ? buildProcessPrompt(cleanQuery, docs, detectedLang)
-      : buildPrompt(cleanQuery, docs, detectedLang);
+      ? buildProcessPrompt(englishQuery, docs, userLang)
+      : buildPrompt(englishQuery, docs, userLang);
 
-    // 6. Generate the answer
+    // 7. Generate the answer — stream directly for ALL languages
     if (wantStream) {
-      // Streaming response
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
-      res.setHeader("X-Detected-Language", detectedLang);
+      res.setHeader("X-Detected-Language", userLang);
 
       const stream = await generateAnswer(prompt, { stream: true });
 
@@ -85,7 +99,7 @@ router.post("/", async (req, res, next) => {
       res.json({
         answer,
         sources,
-        language: detectedLang,
+        language: userLang,
         isProcess,
         docsFound: docs.length,
       });

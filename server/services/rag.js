@@ -4,9 +4,9 @@ import { detectLanguage, getLanguageInstruction } from "./language.js";
 /**
  * Build a RAG prompt with retrieved context chunks and language awareness.
  *
- * @param {string} query - The user's question
+ * @param {string} query - The user's question (in English for context matching)
  * @param {Array<{title: string, content: string, score: number}>} docs - Retrieved document chunks
- * @param {string} detectedLang - Detected language code ('en', 'am', 'ar')
+ * @param {string} detectedLang - Language code for the output ('en', 'am', 'ar')
  * @returns {string} The system prompt for the LLM
  */
 export function buildPrompt(query, docs, detectedLang) {
@@ -47,12 +47,12 @@ INSTRUCTIONS:
 - Be helpful, clear, and provide step-by-step instructions when applicable
 - If the question is about a process or procedure, list the steps clearly with required documents
 - Mention which source documents the information came from
-- Include relevant fees, timeframes, and locations if available in the context
-- If the user asks in Amharic or Arabic, respond in the same language`;
+- Include relevant fees, timeframes, and locations if available in the context`;
 }
 
 /**
  * Build a structured process prompt for step-by-step procedure questions.
+ * The response structure uses the target language for ALL labels and headers.
  */
 export function buildProcessPrompt(query, docs, detectedLang) {
   const lang = detectedLang || detectLanguage(query);
@@ -77,35 +77,21 @@ ${contextText}
 
 QUESTION: ${query}
 
-Respond with the following structure:
+Respond with a well-structured format that includes ALL of the following sections. Every section heading, label, and content MUST be in the language specified above — do NOT use English headings or labels unless the response language is English:
 
-**Process: [Title of the process]**
-
-**Steps:**
-1. [First step with details]
-2. [Second step with details]
-...
-
-**Required Documents:**
-- [Document 1]
-- [Document 2]
-...
-
-**Estimated Time & Fees:**
-- Time: [estimated duration]
-- Fee: [cost if known]
-
-**Important Notes:**
-- [Any additional tips, warnings, or office locations]
-
-**Source:** [Which documents this information came from]
+1. A bold title describing the process
+2. Numbered steps with detailed explanations for each step
+3. A list of required documents
+4. Estimated time and fees (if known from the context)
+5. Important notes, tips, or relevant office locations
 
 INSTRUCTIONS:
 - Use the provided context when available
 - If context is insufficient, provide general guidance and note that specific details may vary
 - Be specific about Ethiopian government processes when information is available
 - Include estimated timeframes and fees if known
-- Mention relevant government offices and their locations if available`;
+- Mention relevant government offices and their locations if available
+- IMPORTANT: Your entire response — including all headings like "Process", "Steps", "Required Documents", "Estimated Time", "Important Notes", "Source" — must be written in the language specified in the language instruction above. Do not mix languages.`;
 }
 
 /**

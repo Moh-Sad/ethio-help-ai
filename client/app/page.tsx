@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Navbar } from '@/components/navbar'
 import { useAuth } from '@/components/auth-provider'
+import { useLanguage } from '@/components/language-provider'
 import {
   MessageSquare,
   GraduationCap,
@@ -12,31 +13,32 @@ import {
   ArrowRight,
 } from 'lucide-react'
 
-const features = [
-  {
-    icon: FileText,
-    title: 'Government Services',
-    description: 'Get help with passports, IDs, licenses, and other official documents.',
-  },
-  {
-    icon: GraduationCap,
-    title: 'Education',
-    description: 'Learn about university applications, scholarships, and enrollment.',
-  },
-  {
-    icon: Heart,
-    title: 'Health',
-    description: 'Find information on healthcare services and medical procedures.',
-  },
-  {
-    icon: Briefcase,
-    title: 'Jobs & Business',
-    description: 'Discover how to start a business, register, or find employment.',
-  },
-]
-
 export default function HomePage() {
   const { user } = useAuth()
+  const { t } = useLanguage()
+
+  const features = [
+    {
+      icon: FileText,
+      title: t('home.feat_gov_title'),
+      description: t('home.feat_gov_desc'),
+    },
+    {
+      icon: GraduationCap,
+      title: t('home.feat_edu_title'),
+      description: t('home.feat_edu_desc'),
+    },
+    {
+      icon: Heart,
+      title: t('home.feat_health_title'),
+      description: t('home.feat_health_desc'),
+    },
+    {
+      icon: Briefcase,
+      title: t('home.feat_jobs_title'),
+      description: t('home.feat_jobs_desc'),
+    },
+  ]
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -48,20 +50,18 @@ export default function HomePage() {
           <div className="flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-1.5">
             <span className="h-2 w-2 rounded-full bg-primary" />
             <span className="text-sm font-medium text-muted-foreground">
-              AI-Powered Information Assistant
+              {t('home.badge')}
             </span>
           </div>
 
           <h1 className="max-w-3xl text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Your Guide to Ethiopian{' '}
-            <span className="text-primary">Services</span> &{' '}
-            <span className="text-primary">Processes</span>
+            {t('home.title_1')}{' '}
+            <span className="text-primary">{t('home.title_2')}</span> {t('home.title_3')}{' '}
+            <span className="text-primary">{t('home.title_4')}</span>
           </h1>
 
           <p className="max-w-2xl text-pretty text-lg leading-relaxed text-muted-foreground">
-            EthioHelp AI helps the Ethiopian community get accurate, step-by-step
-            information about government services, education, health, jobs, and
-            business processes - all powered by AI.
+            {t('home.description')}
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
@@ -70,14 +70,14 @@ export default function HomePage() {
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
             >
               <MessageSquare className="h-4 w-4" />
-              Start Asking
+              {t('home.start_asking')}
             </Link>
             {user ? (
               <Link
                 href="/admin"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
               >
-                Admin Panel
+                {t('home.admin_panel')}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             ) : (
@@ -85,8 +85,7 @@ export default function HomePage() {
                 href="/signup"
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
               >
-                Create Account
-                <ArrowRight className="h-4 w-4" />
+                {t('home.create_account')}
               </Link>
             )}
           </div>
@@ -95,10 +94,10 @@ export default function HomePage() {
         {/* Features Section */}
         <section className="mx-auto w-full max-w-5xl px-4 pb-20">
           <h2 className="mb-2 text-center text-2xl font-bold text-foreground">
-            What can EthioHelp AI help you with?
+            {t('home.features_title')}
           </h2>
           <p className="mb-10 text-center text-muted-foreground">
-            Ask questions about any of these topics and get accurate, sourced answers.
+            {t('home.features_subtitle')}
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -127,27 +126,24 @@ export default function HomePage() {
         <section className="border-t border-border bg-muted/50 px-4 py-16">
           <div className="mx-auto max-w-5xl">
             <h2 className="mb-10 text-center text-2xl font-bold text-foreground">
-              How It Works
+              {t('home.how_title')}
             </h2>
             <div className="grid gap-8 sm:grid-cols-3">
               {[
                 {
                   step: '1',
-                  title: 'Upload Knowledge',
-                  description:
-                    'Admins upload documents about Ethiopian services and processes to build the knowledge base.',
+                  title: t('home.how_1_title'),
+                  description: t('home.how_1_desc'),
                 },
                 {
                   step: '2',
-                  title: 'Ask a Question',
-                  description:
-                    'Users type their question in the chat. The AI searches the knowledge base for relevant information.',
+                  title: t('home.how_2_title'),
+                  description: t('home.how_2_desc'),
                 },
                 {
                   step: '3',
-                  title: 'Get Accurate Answers',
-                  description:
-                    'The AI provides sourced, step-by-step answers based only on verified documents.',
+                  title: t('home.how_3_title'),
+                  description: t('home.how_3_desc'),
                 },
               ].map((item) => (
                 <div key={item.step} className="flex flex-col items-center text-center">
@@ -168,7 +164,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-border px-4 py-6">
         <p className="text-center text-sm text-muted-foreground">
-          EthioHelp AI - Helping the Ethiopian community with accurate information.
+          {t('footer.text')}
         </p>
       </footer>
     </div>

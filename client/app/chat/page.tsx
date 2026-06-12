@@ -7,12 +7,14 @@ import { ChatMessageList } from '@/components/chat-message-list'
 import { ChatInput } from '@/components/chat-input'
 import { ChatSidebar } from '@/components/chat-sidebar'
 import { useAuth } from '@/components/auth-provider'
+import { useLanguage } from '@/components/language-provider'
 import { MessageSquare, PanelLeftOpen } from 'lucide-react'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
 export default function ChatPage() {
   const { user, token } = useAuth()
+  const { language, t } = useLanguage()
   const [input, setInput] = useState('')
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
@@ -54,7 +56,8 @@ export default function ChatPage() {
 
   const { messages, sendMessage, status, setMessages, error } = useAuthChat({
     token,
-    sessionId: activeSessionId
+    sessionId: activeSessionId,
+    language,
   })
 
   const isLoading = status === 'streaming' || status === 'submitted'
@@ -162,7 +165,7 @@ export default function ChatPage() {
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <PanelLeftOpen className="h-4 w-4" />
-                History
+                {t('chat.history')}
               </button>
             </div>
           )}
@@ -176,7 +179,7 @@ export default function ChatPage() {
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 <PanelLeftOpen className="h-4 w-4" />
-                Show History
+                {t('chat.show_history')}
               </button>
             </div>
           )}
@@ -187,17 +190,16 @@ export default function ChatPage() {
                 <MessageSquare className="h-8 w-8 text-primary" />
               </div>
               <h2 className="text-xl font-semibold text-foreground">
-                Ask EthioHelp AI
+                {t('chat.ask_title')}
               </h2>
               <p className="max-w-md text-center text-sm leading-relaxed text-muted-foreground">
-                Ask any question about Ethiopian government services, education,
-                health, jobs, or business processes. Try something like:
+                {t('chat.ask_subtitle')}
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 {[
-                  'How do I get a passport in Ethiopia?',
-                  'How can I apply to university?',
-                  'What documents are needed to start a business?',
+                  t('chat.suggestion_1'),
+                  t('chat.suggestion_2'),
+                  t('chat.suggestion_3'),
                 ].map((suggestion) => (
                   <button
                     key={suggestion}
@@ -217,8 +219,8 @@ export default function ChatPage() {
               <ChatMessageList messages={displayMessages} isLoading={isLoading} />
               {error && (
                 <div className="mx-auto my-4 max-w-2xl rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive shadow-sm">
-                  <p className="font-semibold">Connection Error</p>
-                  <p>Unable to connect to the AI service. Please check your network or try again later.</p>
+                  <p className="font-semibold">{t('chat.connection_error')}</p>
+                  <p>{t('chat.connection_error_desc')}</p>
                 </div>
               )}
             </div>
