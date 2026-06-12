@@ -220,7 +220,16 @@ export default function ChatPage() {
               {error && (
                 <div className="mx-auto my-4 max-w-2xl rounded-lg border border-destructive/20 bg-destructive/10 p-4 text-center text-sm text-destructive shadow-sm">
                   <p className="font-semibold">{t('chat.connection_error')}</p>
-                  <p>{t('chat.connection_error_desc')}</p>
+                  <p>
+                    {(() => {
+                      let msg = error.message || t('chat.connection_error_desc');
+                      try {
+                        const parsed = JSON.parse(msg);
+                        if (parsed.error) msg = parsed.error;
+                      } catch(e) {}
+                      return msg;
+                    })()}
+                  </p>
                 </div>
               )}
             </div>
