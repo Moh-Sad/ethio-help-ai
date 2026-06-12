@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { User, Bot, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useLanguage } from '@/components/language-provider'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -27,6 +28,7 @@ interface ChatMessageListProps {
 
 export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const { t, isRTL } = useLanguage()
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -55,7 +57,7 @@ export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
                   )}
                 >
                   {isUser ? (
-                    <User className="h-4 w-4 text-secondary-foreground" />
+                    <User className="h-4 w-4 text-primary-foreground" />
                   ) : (
                     <Bot className="h-4 w-4 text-primary-foreground" />
                   )}
@@ -68,6 +70,7 @@ export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
                       ? 'bg-primary text-primary-foreground'
                       : 'border border-border bg-card text-card-foreground'
                   )}
+                  dir={isRTL ? 'rtl' : 'ltr'}
                 >
                   {isUser ? (
                     <div className="whitespace-pre-wrap break-words">{text}</div>
@@ -90,7 +93,7 @@ export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
               </div>
               <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Thinking...
+                {t('chat.thinking')}
               </div>
             </div>
           )}

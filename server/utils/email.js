@@ -35,7 +35,7 @@ export const sendVerificationEmail = async (toEmail, token) => {
   try {
     const tp = await initTransporter();
     
-    const verificationUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/verify-email?token=${token}`;
+    const verificationUrl = `${process.env.CLIENT_URL || 'https://ethiohelp.vercel.app'}/verify-email?token=${token}`;
     
     const mailOptions = {
       from: '"EthioHelp AI" <noreply@ethiohelp.ai>',

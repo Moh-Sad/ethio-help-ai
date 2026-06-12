@@ -77,9 +77,15 @@ export function isRTL(langCode) {
  */
 export function getLanguageInstruction(detectedLang) {
   const instructions = {
-    en: "The user is writing in English. Respond in English.",
-    am: "The user is writing in Amharic (አማርኛ). You MUST respond in Amharic using Ethiopic/Geez script (ፊደል). Do NOT respond in English unless the user explicitly asks for English.",
-    ar: "The user is writing in Arabic (عربي). You MUST respond in Arabic using Arabic script. Do NOT respond in English unless the user explicitly asks for English.",
+    en: "LANGUAGE: Respond entirely in English.",
+    am: `LANGUAGE: You MUST respond ENTIRELY in Amharic (አማርኛ) using Ethiopic/Geez script (ፊደል).
+This means every single word in your response must be in Amharic — including all headings, section titles, labels (such as the equivalents of "Process", "Steps", "Required Documents", "Estimated Time", "Important Notes", "Source"), bullet point text, and body content.
+Do NOT use any English words anywhere in your response. The only exceptions are proper nouns that have no Amharic equivalent (e.g., specific system names).
+If you use even one English word for a heading or label, your response is WRONG.`,
+    ar: `LANGUAGE: You MUST respond ENTIRELY in Arabic (العربية) using Arabic script.
+This means every single word in your response must be in Arabic — including all headings, section titles, labels (such as the equivalents of "Process", "Steps", "Required Documents", "Estimated Time", "Important Notes", "Source"), bullet point text, and body content.
+Do NOT use any English words anywhere in your response. The only exceptions are proper nouns that have no Arabic equivalent.
+If you use even one English word for a heading or label, your response is WRONG.`,
   };
   return instructions[detectedLang] || instructions.en;
 }

@@ -2,6 +2,7 @@
 
 import { formatDistanceToNow } from '@/lib/date-utils'
 import { useAuth } from '@/components/auth-provider'
+import { useLanguage } from '@/components/language-provider'
 import {
   Plus,
   MessageSquare,
@@ -40,6 +41,7 @@ export function ChatSidebar({
   onToggle,
 }: ChatSidebarProps) {
   const { user } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <>
@@ -48,7 +50,7 @@ export function ChatSidebar({
         <button
           type="button"
           onClick={onToggle}
-          className="fixed left-3 top-[4.5rem] z-40 flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+          className="fixed start-3 top-[4.5rem] z-40 flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground lg:hidden"
           aria-label="Open chat history"
         >
           <PanelLeftOpen className="h-4 w-4" />
@@ -70,14 +72,16 @@ export function ChatSidebar({
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed left-0 top-[57px] z-50 flex h-[calc(100vh-57px)] w-72 flex-col overflow-y-auto border-r border-border bg-card transition-transform duration-200 lg:relative lg:top-0 lg:z-auto lg:h-auto lg:overflow-y-visible lg:translate-x-0',
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+          'fixed start-0 top-[57px] z-50 flex h-[calc(100vh-57px)] w-72 flex-col overflow-y-auto border-e border-border bg-card transition-transform duration-200 lg:relative lg:top-0 lg:z-auto lg:h-auto lg:overflow-y-visible lg:translate-x-0',
+          isOpen
+            ? 'translate-x-0 rtl:-translate-x-0'
+            : '-translate-x-full rtl:translate-x-full'
         )}
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-3">
           <h2 className="text-sm font-semibold text-card-foreground">
-            Chat History
+            {t('sidebar.title')}
           </h2>
           <div className="flex items-center gap-1">
             <button
@@ -107,24 +111,24 @@ export function ChatSidebar({
                 <LogIn className="h-5 w-5 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground">
-                Sign in to save and view your chat history
+                {t('sidebar.sign_in_prompt')}
               </p>
               <Link
                 href="/login"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 <LogIn className="h-3.5 w-3.5" />
-                Sign In
+                {t('sidebar.sign_in')}
               </Link>
             </div>
           ) : sessions.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
               <MessageSquare className="h-8 w-8 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">
-                No conversations yet
+                {t('sidebar.no_conversations')}
               </p>
               <p className="text-xs text-muted-foreground/70">
-                Start a new chat to see your history here
+                {t('sidebar.start_new')}
               </p>
             </div>
           ) : (
@@ -142,7 +146,7 @@ export function ChatSidebar({
                   <button
                     type="button"
                     onClick={() => onSelectSession(session.id)}
-                    className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-left"
+                    className="flex min-w-0 flex-1 flex-col items-start gap-0.5 text-start"
                   >
                     <span className="w-full truncate text-sm font-medium">
                       {session.title}
