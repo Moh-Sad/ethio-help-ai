@@ -64,7 +64,6 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=your_email@gmail.com
 SMTP_PASS=your_app_password
-CLIENT_URL=http://localhost:3000
 ```
 
 Start the backend development server:
