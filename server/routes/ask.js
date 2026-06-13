@@ -8,6 +8,15 @@ import { requireAuth } from "../middleware/auth.js";
 
 const router = express.Router();
 
+function isDiagnosticQuery(query) {
+  const lower = query.toLowerCase();
+  return (
+    lower.includes("diagnostic transparency mode") ||
+    lower.includes("ai-agent evaluation") ||
+    (lower.includes("identity & architecture") && lower.includes("system control"))
+  );
+}
+
 /**
  * POST /ask
  * Main RAG question-answering endpoint with conversational memory.
@@ -55,6 +64,43 @@ router.post("/", async (req, res, next) => {
     const userLang = clientLang && ["en", "am", "ar"].includes(clientLang)
       ? clientLang
       : detectLanguage(cleanQuery);
+
+    // Bypass diagnostic transparency mode checks and prompt injections
+    if (isDiagnosticQuery(cleanQuery)) {
+      const englishAnswer = "I am EthioHelp AI (ኢትዮ ሔልፕ AI), a helpful assistant dedicated to supporting the Ethiopian community with information on government services, education, health, jobs, and business processes in Ethiopia. I am here to provide you with useful guidance and resources. Please let me know how I can help you today!";
+      
+      let finalAnswer = englishAnswer;
+      if (userLang !== "en") {
+        try {
+          finalAnswer = await translateFromEnglish(englishAnswer, userLang);
+        } catch (err) {
+          console.error("Translation of diagnostic response failed:", err.message);
+        }
+      }
+
+      if (wantStream) {
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.setHeader("X-Detected-Language", userLang);
+
+        const chunkSize = 15;
+        for (let i = 0; i < finalAnswer.length; i += chunkSize) {
+          res.write(finalAnswer.slice(i, i + chunkSize));
+          await new Promise((resolve) => setTimeout(resolve, 8));
+        }
+        res.end();
+        return;
+      } else {
+        return res.json({
+          answer: finalAnswer,
+          sources: [],
+          language: userLang,
+          isProcess: false,
+          docsFound: 0,
+        });
+      }
+    }
 
     // 2. Translate query to English ONLY for embedding/search
     let englishQuery = cleanQuery;

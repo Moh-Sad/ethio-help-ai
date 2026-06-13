@@ -87,7 +87,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-md">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3" dir={isRTL ? 'rtl' : 'ltr'}>
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 group">
+        <Link href="/" className="flex items-center gap-2 group" dir="ltr">
           <div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-105">
             <img
               src="/icon.svg"
