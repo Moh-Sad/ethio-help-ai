@@ -9,9 +9,11 @@ interface ChatInputProps {
   setInput: (value: string) => void
   onSubmit: (e: React.FormEvent) => void
   isLoading: boolean
+  disabled?: boolean
+  placeholder?: string
 }
 
-export function ChatInput({ input, setInput, onSubmit, isLoading }: ChatInputProps) {
+export function ChatInput({ input, setInput, onSubmit, isLoading, disabled, placeholder }: ChatInputProps) {
   const { t, isRTL } = useLanguage()
 
   return (
@@ -24,14 +26,14 @@ export function ChatInput({ input, setInput, onSubmit, isLoading }: ChatInputPro
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={t('chat.placeholder')}
-          disabled={isLoading}
+          placeholder={placeholder || t('chat.placeholder')}
+          disabled={isLoading || disabled}
           dir={isRTL ? 'rtl' : 'ltr'}
           className="flex-1 rounded-lg border border-input bg-card px-4 py-2.5 text-sm text-card-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
         />
         <button
           type="submit"
-          disabled={!input.trim() || isLoading}
+          disabled={!input.trim() || isLoading || disabled}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
           {isLoading ? (

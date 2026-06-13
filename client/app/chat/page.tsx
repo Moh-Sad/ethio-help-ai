@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import { useAuthChat } from '@/hooks/use-auth-chat'
 import { Navbar } from '@/components/navbar'
 import { ChatMessageList } from '@/components/chat-message-list'
@@ -18,6 +19,63 @@ export default function ChatPage() {
   const [input, setInput] = useState('')
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+
+  // Rate limiting states
+  const [questionCount, setQuestionCount] = useState(0)
+  const [firstQuestionTime, setFirstQuestionTime] = useState<number | null>(null)
+  const [timeRemaining, setTimeRemaining] = useState('')
+
+  // Load rate limits from localStorage on mount & when user logs in/out
+  useEffect(() => {
+    const key = user ? `ethiohelp-limit-${user.id || 'auth'}` : 'ethiohelp-limit-guest'
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        setQuestionCount(parsed.questionCount || 0)
+        setFirstQuestionTime(parsed.firstQuestionTime || null)
+      } catch (e) {
+        localStorage.removeItem(key)
+      }
+    } else {
+      setQuestionCount(0)
+      setFirstQuestionTime(null)
+    }
+  }, [user])
+
+  // Periodic countdown updates for logged-in user limit
+  useEffect(() => {
+    if (!firstQuestionTime || questionCount < 10 || !user) {
+      setTimeRemaining('')
+      return
+    }
+
+    const updateTime = () => {
+      const remainingMs = (firstQuestionTime + 3 * 60 * 60 * 1000) - Date.now()
+      if (remainingMs <= 0) {
+        // Reset limit
+        const key = `ethiohelp-limit-${user.id || 'auth'}`
+        localStorage.setItem(key, JSON.stringify({ questionCount: 0, firstQuestionTime: null }))
+        setQuestionCount(0)
+        setFirstQuestionTime(null)
+        setTimeRemaining('')
+        return
+      }
+      const hours = Math.floor(remainingMs / (1000 * 60 * 60))
+      const minutes = Math.ceil((remainingMs % (1000 * 60 * 60)) / (1000 * 60))
+      if (language === 'am') {
+        setTimeRemaining(`${hours} ሰዓት ከ ${minutes} ደቂቃ`)
+      } else if (language === 'ar') {
+        setTimeRemaining(`${hours} ساعة و ${minutes} دقيقة`)
+      } else {
+        setTimeRemaining(`${hours}h ${minutes}m`)
+      }
+    }
+
+    updateTime()
+    const interval = setInterval(updateTime, 10000) // update every 10 seconds
+    return () => clearInterval(interval)
+  }, [firstQuestionTime, questionCount, user, language])
   const [sessions, setSessions] = useState<
     Array<{ id: string; title: string; createdAt: string; updatedAt: string }>
   >([])
@@ -78,6 +136,30 @@ export default function ChatPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
+
+    const maxAllowed = user ? 10 : 2
+    const now = Date.now()
+
+    // Logged-in user limit expiration check (3-hour limit reset)
+    if (user && firstQuestionTime && now - firstQuestionTime >= 3 * 60 * 60 * 1000) {
+      setQuestionCount(1)
+      setFirstQuestionTime(now)
+      const key = `ethiohelp-limit-${user.id || 'auth'}`
+      localStorage.setItem(key, JSON.stringify({ questionCount: 1, firstQuestionTime: now }))
+    } else if (questionCount >= maxAllowed) {
+      return
+    } else {
+      const newCount = questionCount + 1
+      let newTime = firstQuestionTime
+      if (questionCount === 0) {
+        newTime = now
+        setFirstQuestionTime(now)
+      }
+      setQuestionCount(newCount)
+      const key = user ? `ethiohelp-limit-${user.id || 'auth'}` : 'ethiohelp-limit-guest'
+      localStorage.setItem(key, JSON.stringify({ questionCount: newCount, firstQuestionTime: newTime }))
+    }
+
     sendMessage({ text: input })
     setInput('')
   }
@@ -235,12 +317,45 @@ export default function ChatPage() {
             </div>
           )}
 
-          <ChatInput
-            input={input}
-            setInput={setInput}
-            onSubmit={handleSubmit}
-            isLoading={isLoading}
-          />
+          {!user && questionCount >= 2 ? (
+            <div className="sticky bottom-0 border-t border-border bg-background/80 backdrop-blur-md px-4 py-6">
+              <div className="mx-auto max-w-xl rounded-xl border border-primary/20 bg-primary/5 p-5 text-center shadow-sm backdrop-blur-sm">
+                <h3 className="text-sm font-semibold text-foreground mb-1">
+                  {language === 'am' ? 'ገደብ ላይ ደርሰዋል' : language === 'ar' ? 'وصلت إلى الحد المسموح به' : 'Limit Reached'}
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+                  {language === 'am' ? 'እባክዎን ተጨማሪ ጥያቄዎችን ለመጠየቅ ይግቡ ወይም ይመዝገቡ።' : language === 'ar' ? 'يرجى تسجيل الدخول أو إنشاء حساب لمتابعة طرح الأسئلة.' : 'Please log in or sign up to continue asking questions.'}
+                </p>
+                <div className="flex justify-center gap-3">
+                  <Link
+                    href="/login"
+                    className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+                  >
+                    {language === 'am' ? 'ይግቡ' : language === 'ar' ? 'تسجيل الدخول' : 'Log In'}
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="rounded-lg border border-input bg-card px-4 py-2 text-xs font-semibold text-card-foreground hover:bg-muted transition-colors shadow-sm"
+                  >
+                    {language === 'am' ? 'ይመዝገቡ' : language === 'ar' ? 'إنشاء حساب' : 'Sign Up'}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <ChatInput
+              input={input}
+              setInput={setInput}
+              onSubmit={handleSubmit}
+              isLoading={isLoading}
+              disabled={user ? questionCount >= 10 : questionCount >= 2}
+              placeholder={
+                user && questionCount >= 10
+                  ? (language === 'am' ? `ገደብ ላይ ደርሰዋል: በ ${timeRemaining} ውስጥ ይመለሳል` : language === 'ar' ? `تم الوصول للحد: يستعاد خلال ${timeRemaining}` : `Limit reached: restores in ${timeRemaining}`)
+                  : undefined
+              }
+            />
+          )}
         </main>
       </div>
     </div>

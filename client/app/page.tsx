@@ -10,7 +10,6 @@ import {
   Briefcase,
   Heart,
   FileText,
-  ArrowRight,
 } from 'lucide-react'
 
 export default function HomePage() {
@@ -78,7 +77,6 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-6 py-3 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
               >
                 {t('home.admin_panel')}
-                <ArrowRight className="h-4 w-4" />
               </Link>
             ) : (
               <Link
