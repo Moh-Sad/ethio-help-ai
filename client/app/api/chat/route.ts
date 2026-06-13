@@ -2,6 +2,9 @@
  * POST /api/chat
  * Main RAG chat endpoint.
  * - Receives user messages
+ * - Implements sliding-window conversational memory:
+ *     * Last RECENT_WINDOW_SIZE messages sent verbatim
+ *     * Older messages forwarded for server-side Gemini summarization
  * - Embeds the latest question
  * - Retrieves relevant chunks from the knowledge store
  * - Streams an AI response grounded in the retrieved context
@@ -9,6 +12,9 @@
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+
+// Number of recent messages to always send verbatim (must match server config)
+const RECENT_WINDOW_SIZE = 6
 
 export const maxDuration = 60
 
@@ -20,9 +26,25 @@ function sseEvent(obj: Record<string, unknown>): string {
   return `data: ${JSON.stringify(obj)}\r\n\r\n`
 }
 
+/** Convert an AI SDK message to a plain {role, text} object for the backend */
+function toPlainMessage(m: { role: string; parts?: Array<{ type: string; text?: string }>; content?: string }): { role: string; text: string } {
+  // AI SDK v6 messages use parts[]; v5 and restored messages may use content
+  const text =
+    m.parts
+      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('') ||
+    (typeof m.content === 'string' ? m.content : '') ||
+    ''
+  return { role: m.role === 'user' ? 'user' : 'assistant', text }
+}
+
 export async function POST(req: Request) {
-  const { messages, sessionId, language }: { messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }> }>; sessionId?: string; language?: string } =
-    await req.json()
+  const { messages, sessionId, language }: {
+    messages: Array<{ id: string; role: string; parts?: Array<{ type: string; text?: string }>; content?: string }>
+    sessionId?: string
+    language?: string
+  } = await req.json()
 
   // Extract token from Authorization header
   const authHeader = req.headers.get('authorization') || ''
@@ -38,6 +60,24 @@ export async function POST(req: Request) {
 
   if (!questionText) {
     return new Response('No question provided', { status: 400 })
+  }
+
+  // -------------------------------------------------------------------------
+  // Sliding Window: split messages into recent (verbatim) vs older (to summarize)
+  // -------------------------------------------------------------------------
+  // Exclude the very last message (the current question) from history since
+  // it's sent separately as `query`.
+  const allHistoryMessages = messages.slice(0, -1)
+  const plainHistory = allHistoryMessages.map(toPlainMessage)
+
+  let recentMessages: { role: string; text: string }[] = []
+  let olderMessages: { role: string; text: string }[] = []
+
+  if (plainHistory.length > RECENT_WINDOW_SIZE) {
+    olderMessages = plainHistory.slice(0, plainHistory.length - RECENT_WINDOW_SIZE)
+    recentMessages = plainHistory.slice(plainHistory.length - RECENT_WINDOW_SIZE)
+  } else {
+    recentMessages = plainHistory
   }
 
   // Save user message to backend history if authenticated
@@ -76,7 +116,7 @@ export async function POST(req: Request) {
     }
   }
 
-  // Forward the chat query to the Express backend
+  // Forward the chat query + conversation memory to the Express backend
   const askRes = await fetch(`${API_URL}/ask`, {
     method: 'POST',
     headers: {
@@ -87,6 +127,8 @@ export async function POST(req: Request) {
       query: questionText,
       stream: true,
       language: language || 'en',
+      recentMessages,
+      olderMessages,
     }),
   })
 
@@ -165,3 +207,4 @@ export async function POST(req: Request) {
     headers,
   })
 }
+

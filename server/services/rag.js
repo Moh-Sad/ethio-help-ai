@@ -1,5 +1,73 @@
-import axios from "axios";
 import { detectLanguage, getLanguageInstruction } from "./language.js";
+
+// ---------------------------------------------------------------------------
+// Conversational Memory — Sliding Window Configuration
+// ---------------------------------------------------------------------------
+// The last RECENT_WINDOW_SIZE messages are always sent verbatim to the AI.
+// Older messages beyond this window are compressed into a summary paragraph
+// using Gemini, reducing token usage while preserving broad context.
+const RECENT_WINDOW_SIZE = 6; // last 3 turns (user + assistant each)
+
+/**
+ * Summarize an array of older messages into a compact paragraph in English using Gemini.
+ * Called only when the conversation has grown beyond the recent window.
+ *
+ * @param {Array<{role: string, text: string}>} messages - Older messages to summarize
+ * @returns {Promise<string>} A concise English summary paragraph
+ */
+export async function summarizeHistory(messages) {
+  if (!messages || messages.length === 0) return "";
+
+  const transcript = messages
+    .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.text}`)
+    .join("\n");
+
+  const summaryPrompt = `You are a conversation summarizer. Below is the beginning of a conversation between a user and EthioHelp AI. Summarize it into a single concise paragraph (max 150 words) IN ENGLISH. The summary must capture the key topics discussed, questions asked, and answers given, regardless of the language of the conversation. This summary will be used to give the AI memory of the earlier conversation.
+
+CONVERSATION:
+${transcript}
+
+SUMMARY (IN ENGLISH):`;
+
+  try {
+    const { GoogleGenerativeAI } = await import("@google/generative-ai");
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: summaryPrompt }] }],
+    });
+    return result.response.text().trim();
+  } catch (err) {
+    console.error("History summarization failed:", err.message);
+    // Fallback: just truncate the transcript
+    return transcript.slice(0, 400) + (transcript.length > 400 ? "..." : "");
+  }
+}
+
+/**
+ * Build a conversation history block to inject into prompts.
+ * @param {string} summary - Summary of older messages (may be empty)
+ * @param {string} recentTranscript - Recent conversation transcript verbatim
+ * @returns {string} Formatted history block, or empty string if no history
+ */
+function buildHistoryBlock(summary, recentTranscript) {
+  const parts = [];
+
+  if (summary) {
+    parts.push(`## Conversation Summary (earlier in this session):\n${summary}`);
+  }
+
+  if (recentTranscript) {
+    parts.push(`## Recent Conversation:\n${recentTranscript}`);
+  }
+
+  if (parts.length === 0) return "";
+  return parts.join("\n\n") + "\n\n";
+}
+
+// ---------------------------------------------------------------------------
+// Prompt Builders
+// ---------------------------------------------------------------------------
 
 /**
  * Build a RAG prompt with retrieved context chunks and language awareness.
@@ -7,18 +75,22 @@ import { detectLanguage, getLanguageInstruction } from "./language.js";
  * @param {string} query - The user's question (in English for context matching)
  * @param {Array<{title: string, content: string, score: number}>} docs - Retrieved document chunks
  * @param {string} detectedLang - Language code for the output ('en', 'am', 'ar')
+ * @param {Object} [history] - Optional conversational history
+ * @param {string} [history.summary] - Summary of older messages
+ * @param {string} [history.recentTranscript] - Recent conversation transcript block
  * @returns {string} The system prompt for the LLM
  */
-export function buildPrompt(query, docs, detectedLang) {
+export function buildPrompt(query, docs, detectedLang, history = {}) {
   const lang = detectedLang || detectLanguage(query);
   const langInstruction = getLanguageInstruction(lang);
+  const historyBlock = buildHistoryBlock(history.summary || "", history.recentTranscript || "");
 
   if (!docs || docs.length === 0) {
     return `You are EthioHelp AI (ኢትዮ ሔልፕ AI), a helpful assistant for the Ethiopian community. You help with questions about government services, education, health, jobs, and business processes in Ethiopia.
 
 ${langInstruction}
 
-Currently, no relevant documents were found in the knowledge base for this question. You can still try to help with general knowledge about Ethiopia, but please let the user know that for the most accurate and specific information, an admin should upload relevant documents.
+${historyBlock}Currently, no relevant documents were found in the knowledge base for this question. You can still try to help with general knowledge about Ethiopia, but please let the user know that for the most accurate and specific information, an admin should upload relevant documents.
 
 Be friendly, helpful, and honest about the limitations of your current knowledge.
 
@@ -36,7 +108,7 @@ User's question: ${query}`;
 
 ${langInstruction}
 
-CONTEXT:
+${historyBlock}CONTEXT:
 ${contextText}
 
 QUESTION: ${query}
@@ -47,16 +119,25 @@ INSTRUCTIONS:
 - Be helpful, clear, and provide step-by-step instructions when applicable
 - If the question is about a process or procedure, list the steps clearly with required documents
 - Mention which source documents the information came from
-- Include relevant fees, timeframes, and locations if available in the context`;
+- Include relevant fees, timeframes, and locations if available in the context
+- If the user refers to something mentioned earlier in the conversation, use the conversation history above to understand the reference`;
 }
 
 /**
  * Build a structured process prompt for step-by-step procedure questions.
  * The response structure uses the target language for ALL labels and headers.
+ *
+ * @param {string} query
+ * @param {Array} docs
+ * @param {string} detectedLang
+ * @param {Object} [history]
+ * @param {string} [history.summary]
+ * @param {string} [history.recentTranscript]
  */
-export function buildProcessPrompt(query, docs, detectedLang) {
+export function buildProcessPrompt(query, docs, detectedLang, history = {}) {
   const lang = detectedLang || detectLanguage(query);
   const langInstruction = getLanguageInstruction(lang);
+  const historyBlock = buildHistoryBlock(history.summary || "", history.recentTranscript || "");
 
   const contextText =
     docs && docs.length > 0
@@ -72,7 +153,7 @@ export function buildProcessPrompt(query, docs, detectedLang) {
 
 ${langInstruction}
 
-CONTEXT:
+${historyBlock}CONTEXT:
 ${contextText}
 
 QUESTION: ${query}
@@ -91,8 +172,13 @@ INSTRUCTIONS:
 - Be specific about Ethiopian government processes when information is available
 - Include estimated timeframes and fees if known
 - Mention relevant government offices and their locations if available
+- If the user refers to something mentioned earlier in the conversation, use the conversation history above to understand the reference
 - IMPORTANT: Your entire response — including all headings like "Process", "Steps", "Required Documents", "Estimated Time", "Important Notes", "Source" — must be written in the language specified in the language instruction above. Do not mix languages.`;
 }
+
+// ---------------------------------------------------------------------------
+// Process Question Detection
+// ---------------------------------------------------------------------------
 
 /**
  * Detect if a question is about a process/procedure.
@@ -150,6 +236,10 @@ export function isProcessQuestion(question) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Answer Generation
+// ---------------------------------------------------------------------------
+
 /**
  * Generate an answer using Google Gemini.
  * Supports streaming responses.
@@ -183,3 +273,6 @@ export async function generateAnswer(systemPrompt, { stream = false } = {}) {
 
   return result.response.text();
 }
+
+export { RECENT_WINDOW_SIZE };
+
