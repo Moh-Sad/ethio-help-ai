@@ -71,10 +71,11 @@ router.post("/login", async (req, res, next) => {
 
     const token = generateToken(user._id);
 
+    const isProduction = process.env.NODE_ENV === "production" || !req.headers.origin?.includes("localhost");
     res.cookie("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      secure: isProduction,
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/",
     });
@@ -113,11 +114,12 @@ router.post("/verify-email", async (req, res, next) => {
   }
 });
 
-router.post("/logout", (_req, res) => {
+router.post("/logout", (req, res) => {
+  const isProduction = process.env.NODE_ENV === "production" || !req.headers.origin?.includes("localhost");
   res.cookie("token", "", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
     maxAge: 0,
     path: "/",
   });
