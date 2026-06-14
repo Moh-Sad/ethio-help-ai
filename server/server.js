@@ -16,10 +16,35 @@ dotenv.config();
 
 const app = express();
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  })
+);
+
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  "https://ethiohelp.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173",
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+      if (!origin) return callback(null, true);
+      
+      const isAllowed = allowedOrigins.includes(origin) || 
+                        origin.endsWith(".vercel.app") ||
+                        /\.vercel\.app$/.test(origin);
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(null, false);
+      }
+    },
     credentials: true,
   })
 );

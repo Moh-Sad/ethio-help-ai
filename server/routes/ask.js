@@ -60,10 +60,8 @@ router.post("/", async (req, res, next) => {
 
     const cleanQuery = query.trim();
 
-    // 1. Determine language: prefer explicit client language, fallback to detection
-    const userLang = clientLang && ["en", "am", "ar"].includes(clientLang)
-      ? clientLang
-      : detectLanguage(cleanQuery);
+    // 1. Determine language: detect language of the question itself (ar, am, or en)
+    const userLang = detectLanguage(cleanQuery);
 
     // Bypass diagnostic transparency mode checks and prompt injections
     if (isDiagnosticQuery(cleanQuery)) {
