@@ -136,7 +136,7 @@ export function ChatMessageList({ messages, isLoading }: ChatMessageListProps) {
                 <div className="h-px bg-border w-full" />
                 <div className="text-xs leading-relaxed text-muted-foreground flex flex-col gap-2">
                   <p className="font-semibold text-primary">
-                    {language === 'am' ? 'ይህን ያውቁ ኖሯል? 🇪🇹' : language === 'ar' ? 'هل تعلم؟ 🇪🇹' : 'Did you know!? 🇪🇹'}
+                    {language === 'am' ? 'ይህን ያውቁ ነበር? 🇪🇹' : language === 'ar' ? 'هل تعلم؟ 🇪🇹' : 'Did you know!? 🇪🇹'}
                   </p>
                   <p>
                     {ETHIOPIAN_FACTS[factIndex]?.[language as 'en' | 'am' | 'ar'] || ETHIOPIAN_FACTS[factIndex]?.en}
